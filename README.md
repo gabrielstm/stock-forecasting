@@ -47,6 +47,35 @@ Se quiser chamar diretamente um Python fora do PATH (obs.: as aspas exigem o ope
 
 Observação: o `Main.py` treinará um modelo (podendo levar tempo) e exibirá gráficos com Matplotlib. Ao final ele salva `stock_model.h5` e `stock_normalize.npy` no diretório do projeto.
 
+### Outros scripts disponíveis
+
+- `nlinear.py`: baseline totalmente conectado (N-BEATS/NLinear style). Aceita flags como `--epochs`, `--batch-size`, `--time-steps`, `--learning-rate` e `--no-plot`.
+    ```powershell
+    python nlinear.py --epochs 100 --batch-size 32
+    ```
+- `patchTST.py`: implementação em TensorFlow do PatchTST (Transformer com patches temporais). Além das flags anteriores, expõe hiperparâmetros como `--patch-len`, `--patch-stride`, `--d-model`, `--num-heads`, `--layers` e `--dropout`.
+    ```powershell
+    python patchTST.py --epochs 100 --batch-size 32 --patch-len 4 --patch-stride 2
+    ```
+- `LSTM.py`: roda as variantes LSTM (residual e série completa) e gera gráficos/resultados consolidando a etapa baseline.
+
+Todos usam os mesmos dados (`601988.SH.csv` e `ARIMA_residuals1.csv`) para treino/teste e exibem métricas de avaliação. Use `--no-plot` para pular a exibição dos gráficos em execuções automatizadas (mesmo com `--no-plot`, os arquivos são salvos).
+
+### Resultados salvos automaticamente
+
+Cada script salva suas saídas em `results/`:
+
+- `*_predictions.png` e `lstm_*_loss.png`: gráficos de treino/predição com o nome do modelo.
+- `*_test_results.txt`: arquivo texto com métricas (MSE, RMSE, MAE, R²) seguido de toda a tabela de comparação (`date`, `true`, `pred`, `abs_error`).
+
+Exemplo de execução headless e coleta de artefatos:
+
+```powershell
+python nlinear.py --epochs 50 --batch-size 32 --no-plot
+python patchTST.py --epochs 50 --batch-size 32 --no-plot
+python LSTM.py
+```
+
 ## Arquivos de entrada esperados
 
 Coloque os CSVs necessários no diretório do projeto (ou ajuste os caminhos no `Main.py`):

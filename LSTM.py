@@ -1,16 +1,50 @@
+from pathlib import Path
+
 import pandas as pd
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn import metrics
 from sklearn.preprocessing import MinMaxScaler
-from keras.models import Sequential
-from keras.layers import Dense, LSTM, Bidirectional
-from keras.optimizers import Adam
-# from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, LSTM, Bidirectional
+from tensorflow.keras.optimizers import Adam
 from numpy.random import seed
 from utils import *
 from model import lstm
+
+RESULTS_DIR = Path('results')
+RESULTS_DIR.mkdir(exist_ok=True)
+
+
+def save_plot(filename: str):
+    path = RESULTS_DIR / filename
+    plt.tight_layout()
+    plt.savefig(path, dpi=300)
+    plt.close()
+
+
+def save_test_results(model_name: str, dates, y_true, y_pred):
+    mse = metrics.mean_squared_error(y_true, y_pred)
+    rmse = mse**0.5
+    mae = metrics.mean_absolute_error(y_true, y_pred)
+    r2 = metrics.r2_score(y_true, y_pred)
+
+    df = pd.DataFrame({
+        'date': dates,
+        'true': y_true,
+        'pred': y_pred,
+        'abs_error': np.abs(np.array(y_true) - np.array(y_pred))
+    })
+
+    results_path = RESULTS_DIR / f'{model_name}_test_results.txt'
+    with open(results_path, 'w', encoding='utf-8') as f:
+        f.write(f'MSE: {mse:.6f}\n')
+        f.write(f'RMSE: {rmse:.6f}\n')
+        f.write(f'MAE: {mae:.6f}\n')
+        f.write(f'R2: {r2:.6f}\n')
+        f.write('\n')
+        df.to_csv(f, index=False)
 
 # GPU
 gpus = tf.config.experimental.list_physical_devices("GPU")
@@ -22,7 +56,7 @@ seed(1)
 tf.random.set_seed(1)
 
 n_timestamp = 10
-n_epochs = 50
+n_epochs = 5
 # ====================================
 #      model type：
 #            1. single-layer LSTM
@@ -50,9 +84,9 @@ yuan_test_set = yuan_data.iloc[idx:, :]
 sc = MinMaxScaler(feature_range=(0, 1))
 yuan_sc = MinMaxScaler(feature_range=(0, 1))
 training_set_scaled = sc.fit_transform(training_set)
-testing_set_scaled = sc.fit_transform(test_set)
+testing_set_scaled = sc.transform(test_set)
 yuan_training_set_scaled = yuan_sc.fit_transform(yuan_training_set)
-yuan_testing_set_scaled = yuan_sc.fit_transform(yuan_test_set)
+yuan_testing_set_scaled = yuan_sc.transform(yuan_test_set)
 
 X_train, y_train = data_split(training_set_scaled, n_timestamp)
 yuan_X_train, yuan_y_train = data_split(yuan_training_set_scaled, n_timestamp)
@@ -63,14 +97,15 @@ X_test, y_test = data_split(testing_set_scaled, n_timestamp)
 
 X_test = X_test.reshape(X_test.shape[0], X_test.shape[1], 1)
 yuan_X_test, yuan_y_test = data_split(yuan_testing_set_scaled, n_timestamp)
-yuna_X_test = yuan_X_test.reshape(yuan_X_test.shape[0], yuan_X_test.shape[1], 5)
+yuan_X_test = yuan_X_test.reshape(yuan_X_test.shape[0], yuan_X_test.shape[1], 5)
 
 model, yuan_model = lstm(model_type,X_train,yuan_X_train)
 print(model.summary())
-adam = Adam(learning_rate=0.01)
-model.compile(optimizer=adam,
+residual_optimizer = Adam(learning_rate=0.01)
+yuan_optimizer = Adam(learning_rate=0.01)
+model.compile(optimizer=residual_optimizer,
               loss='mse')
-yuan_model.compile(optimizer=adam,
+yuan_model.compile(optimizer=yuan_optimizer,
                    loss='mse')
 
 history = model.fit(X_train, y_train,
@@ -90,14 +125,14 @@ plt.plot(history.history['loss'], label='Training Loss')
 plt.plot(history.history['val_loss'], label='Validation Loss')
 plt.title('residuals: Training and Validation Loss')
 plt.legend()
-plt.show()
+save_plot('lstm_residual_loss.png')
 
 plt.figure(figsize=(10, 6))
 plt.plot(yuan_history.history['loss'], label='Training Loss')
 plt.plot(yuan_history.history['val_loss'], label='Validation Loss')
 plt.title('LSTM: Training and Validation Loss')
 plt.legend()
-plt.show()
+save_plot('lstm_stock_loss.png')
 
 yuan_predicted_stock_price = yuan_model.predict(yuan_X_test)
 yuan_predicted_stock_price = yuan_sc.inverse_transform(yuan_predicted_stock_price)
@@ -142,7 +177,7 @@ plt.title('BiLSTM: Stock Price Prediction')
 plt.xlabel('Time', fontsize=12, verticalalignment='top')
 plt.ylabel('Close', fontsize=14, horizontalalignment='center')
 plt.legend()
-plt.show()
+save_plot('lstm_residual_vs_actual.png')
 
 plt.figure(figsize=(10, 6))
 plt.plot(yuan_real_stock_price1['close'], label='Stock Price')
@@ -151,7 +186,11 @@ plt.title('LSTM: Stock Price Prediction')
 plt.xlabel('Time', fontsize=12, verticalalignment='top')
 plt.ylabel('Close', fontsize=14, horizontalalignment='center')
 plt.legend()
-plt.show()
+save_plot('lstm_stock_vs_actual.png')
 
 yhat = yuan_data.loc['2021-06-22':, 'close']
 evaluation_metric(finalpredicted_stock_price['close'],yhat)
+aligned_dates = finalpredicted_stock_price.index
+aligned_true = yuan_data.loc[aligned_dates, 'close'].values
+aligned_pred = finalpredicted_stock_price['close'].values
+save_test_results('lstm', aligned_dates, aligned_true, aligned_pred)
