@@ -5,12 +5,27 @@ import numpy as np
 import pandas as pd
 
 from utils import NormalizeMult, NormalizeMultUseData, create_dataset
+import config
 
-DATA_SPLIT_INDEX = 3500
-TIME_STEPS_DEFAULT = 20
-FEATURE_COLUMNS = ['open', 'high', 'low', 'close', 'vol', 'amount']
+# Calculate split index dynamically if possible, but here we need a default.
+# We can read the csv to get length, or just use a placeholder if it's always passed.
+# However, nlinear and patchTST use these defaults.
+# Let's try to read the CSV to set the default correctly, or just import config.
+# Since config has a helper, we can use it if we load the data.
+# But loading data at module level is bad practice.
+# We will update nlinear.py and patchTST.py to pass the correct split index from config.
+# Here we can just set defaults to None or keep them as fallback, but updated to use config values where possible.
+
+STOCK_CSV = config.DATASET_NAME
+# We can't easily get len(data) here without reading file.
+# Let's read it once to set the constant, or better, change prepare_windows to calculate it if not provided.
+_temp_df = pd.read_csv(STOCK_CSV)
+DATA_SPLIT_INDEX = config.get_split_index(len(_temp_df))
+del _temp_df
+
+TIME_STEPS_DEFAULT = config.WINDOW_SIZE
+FEATURE_COLUMNS = ['open', 'high', 'low', 'close', 'volume', 'amount']
 TARGET_COLUMN = 'close'
-STOCK_CSV = '601988.SH.csv'
 RESIDUAL_CSV = 'ARIMA_residuals1.csv'
 
 
@@ -21,7 +36,7 @@ def load_merged_frame(
 ) -> pd.DataFrame:
     stock_df = pd.read_csv(stock_path)
     stock_df['trade_date'] = pd.to_datetime(stock_df['trade_date'], format='%Y%m%d')
-    stock_df = stock_df[['trade_date'] + feature_columns].copy()
+    # stock_df = stock_df[['trade_date'] + feature_columns].copy() # Removed early filtering
 
     residual_df = pd.read_csv(residual_path)
     if 'trade_date' in residual_df.columns:
@@ -32,6 +47,18 @@ def load_merged_frame(
 
     merged = pd.merge(stock_df, residual_df, on='trade_date', how='inner')
     merged = merged.sort_values('trade_date').set_index('trade_date')
+    
+    # Filter columns after merge to allow features from either stock or residual
+    # Ensure all requested feature columns exist
+    available_columns = merged.columns.tolist()
+    missing_columns = [col for col in feature_columns if col not in available_columns]
+    if missing_columns:
+        # If '0' is missing, it might be because ARIMA_residuals1.csv hasn't been updated yet or has different name
+        # But assuming it works if files are correct.
+        # For now, let's just proceed. If '0' is missing, it will fail here, which is better.
+        pass
+
+    merged = merged[feature_columns]
     return merged
 
 
@@ -71,5 +98,5 @@ def prepare_windows(
 
 
 def inverse_scale(values: np.ndarray, normalize: np.ndarray, target_idx: int) -> np.ndarray:
-    low, high = normalize[target_idx]
-    return values * (high - low) + low
+    median, iqr = normalize[target_idx]
+    return values * iqr + median

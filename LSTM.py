@@ -5,13 +5,14 @@ import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn import metrics
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import RobustScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LSTM, Bidirectional
 from tensorflow.keras.optimizers import Adam
 from numpy.random import seed
 from utils import *
 from model import lstm
+import config
 
 RESULTS_DIR = Path('results')
 RESULTS_DIR.mkdir(exist_ok=True)
@@ -55,8 +56,8 @@ if gpus:
 seed(1)
 tf.random.set_seed(1)
 
-n_timestamp = 10
-n_epochs = 5
+n_timestamp = config.WINDOW_SIZE
+n_epochs = config.EPOCHS
 # ====================================
 #      model type：
 #            1. single-layer LSTM
@@ -65,7 +66,7 @@ n_epochs = 5
 # ====================================
 model_type = 3
 
-yuan_data = pd.read_csv('./601988.SH.csv')  
+yuan_data = pd.read_csv(f'./{config.DATASET_NAME}')  
 yuan_data.index = pd.to_datetime(yuan_data['trade_date'], format='%Y%m%d') 
 yuan_data = yuan_data.loc[:, ['open', 'high', 'low', 'close', 'amount']]
 
@@ -75,14 +76,14 @@ data = data.drop('trade_date', axis=1)
 # data = pd.merge(data, yuan_data, on='trade_date') 
 
 Lt = pd.read_csv('./ARIMA.csv')
-idx = 3500
+idx = config.get_split_index(len(yuan_data))
 training_set = data.iloc[1:idx, :]
 test_set = data.iloc[idx:, :]
 yuan_training_set = yuan_data.iloc[1:idx, :]
 yuan_test_set = yuan_data.iloc[idx:, :]
 
-sc = MinMaxScaler(feature_range=(0, 1))
-yuan_sc = MinMaxScaler(feature_range=(0, 1))
+sc = RobustScaler()
+yuan_sc = RobustScaler()
 training_set_scaled = sc.fit_transform(training_set)
 testing_set_scaled = sc.transform(test_set)
 yuan_training_set_scaled = yuan_sc.fit_transform(yuan_training_set)
@@ -188,9 +189,11 @@ plt.ylabel('Close', fontsize=14, horizontalalignment='center')
 plt.legend()
 save_plot('lstm_stock_vs_actual.png')
 
-yhat = yuan_data.loc['2021-06-22':, 'close']
-evaluation_metric(finalpredicted_stock_price['close'],yhat)
+# yhat = yuan_data.loc['2021-06-22':, 'close']
+# Use aligned dates for evaluation to avoid shape mismatch
 aligned_dates = finalpredicted_stock_price.index
-aligned_true = yuan_data.loc[aligned_dates, 'close'].values
+yhat = yuan_data.loc[aligned_dates, 'close']
+evaluation_metric(finalpredicted_stock_price['close'],yhat)
+aligned_true = yhat.values
 aligned_pred = finalpredicted_stock_price['close'].values
 save_test_results('lstm', aligned_dates, aligned_true, aligned_pred)

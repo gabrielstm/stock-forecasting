@@ -3,27 +3,31 @@ import numpy as np
 import matplotlib.pyplot as plt
 from utils import *
 from model import walk_forward_validation
+import config
 
-data = pd.read_csv('./601988.SH.csv')
+data = pd.read_csv(f'./{config.DATASET_NAME}')
 data.index = pd.to_datetime(data['trade_date'], format='%Y%m%d')
-data = data.loc[:, ['open', 'high', 'low', 'close', 'vol', 'amount']]
+data = data.loc[:, ['open', 'high', 'low', 'close', 'volume', 'amount']]
 # data = pd.DataFrame(data, dtype=np.float64)
 close = data.pop('close')
 data.insert(5, 'close', close)
-data1 = data.iloc[3501:, 5]
+split_idx = config.get_split_index(len(data))
+data1 = data.iloc[split_idx:, 5]
 residuals = pd.read_csv('./ARIMA_residuals1.csv')
 residuals.index = pd.to_datetime(residuals['trade_date'])
 residuals.pop('trade_date')
 merge_data = pd.merge(data, residuals, on='trade_date')
 #merge_data = merge_data.drop(labels='2007-01-04', axis=0)
-time = pd.Series(data.index[3501:])
+time = pd.Series(data.index[split_idx:])
 
 Lt = pd.read_csv('./ARIMA.csv')
 Lt = Lt.drop('trade_date', axis=1)
 Lt = np.array(Lt)
 Lt = Lt.flatten().tolist()
 
-train, test = prepare_data(merge_data, n_test=180, n_in=6, n_out=1)
+# n_test should be the length of the test set
+n_test = len(data1)
+train, test = prepare_data(merge_data, n_test=n_test, n_in=6, n_out=1)
 
 y, yhat = walk_forward_validation(train, test)
 plt.figure(figsize=(10, 6))

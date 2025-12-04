@@ -13,6 +13,7 @@ from data_pipeline import (DATA_SPLIT_INDEX, FEATURE_COLUMNS, RESIDUAL_CSV,
                            STOCK_CSV, TARGET_COLUMN, TIME_STEPS_DEFAULT,
                            inverse_scale, prepare_windows)
 from utils import evaluation_metric
+import config
 
 PATCH_LEN_DEFAULT = 4
 PATCH_STRIDE_DEFAULT = 2
@@ -172,11 +173,15 @@ def save_test_results(model_name: str, dates, y_true, y_pred):
 
 
 def train(args):
+    # Use residuals as features and target
+    feature_columns = ['0']
+    target_column = '0'
+
     train_X, train_y, test_X, test_y, normalize, target_idx, test_dates = prepare_windows(
         time_steps=args.time_steps,
         split_index=args.split_index,
-        target_column=TARGET_COLUMN,
-        feature_columns=FEATURE_COLUMNS,
+        target_column=target_column,
+        feature_columns=feature_columns,
         stock_csv=STOCK_CSV,
         residual_csv=RESIDUAL_CSV
     )
@@ -209,20 +214,50 @@ def train(args):
 
     preds = model.predict(test_X, batch_size=args.batch_size).flatten()
 
-    y_true = inverse_scale(test_y, normalize, target_idx)
-    y_pred = inverse_scale(preds, normalize, target_idx)
-    evaluation_metric(y_true, y_pred)
+    y_true_residual = inverse_scale(test_y, normalize, target_idx)
+    y_pred_residual = inverse_scale(preds, normalize, target_idx)
+    
+    # Load ARIMA predictions
+    arima_preds = pd.read_csv('ARIMA.csv')
+    arima_preds['trade_date'] = pd.to_datetime(arima_preds['trade_date'])
+    arima_preds = arima_preds.set_index('trade_date')
 
-    dates = test_dates[: len(y_true)]
-    plot_results(dates, y_true, y_pred, 'patchtst_predictions.png', not args.no_plot)
-    save_test_results('patchtst', dates, y_true, y_pred)
+    # Create DataFrame for predicted residuals
+    dates = test_dates[: len(y_pred_residual)]
+    pred_residuals_df = pd.DataFrame({
+        'trade_date': dates,
+        'residual_pred': y_pred_residual
+    }).set_index('trade_date')
+
+    # Combine ARIMA + Residuals
+    arima_preds = arima_preds.rename(columns={'close': 'close'})
+    pred_residuals_df = pred_residuals_df.rename(columns={'residual_pred': 'close'})
+    
+    final_pred = pd.concat([arima_preds, pred_residuals_df]).groupby('trade_date')['close'].sum()
+    
+    # Load Real Stock Price for comparison
+    stock_df = pd.read_csv(STOCK_CSV)
+    stock_df['trade_date'] = pd.to_datetime(stock_df['trade_date'], format='%Y%m%d')
+    stock_df = stock_df.set_index('trade_date')
+    
+    # Align with final_pred
+    test_dates_intersection = final_pred.index.intersection(stock_df.index).intersection(dates)
+    
+    final_pred = final_pred.loc[test_dates_intersection]
+    y_true_final = stock_df.loc[test_dates_intersection, 'close']
+    
+    print("Evaluation on Final Prediction (ARIMA + Residuals):")
+    evaluation_metric(y_true_final.values, final_pred.values)
+
+    plot_results(test_dates_intersection, y_true_final.values, final_pred.values, 'patchtst_predictions.png', not args.no_plot)
+    save_test_results('patchtst', test_dates_intersection, y_true_final.values, final_pred.values)
 
     return history
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description='PatchTST implementation em TensorFlow (corrigida).')
-    parser.add_argument('--epochs', type=int, default=5)
+    parser.add_argument('--epochs', type=int, default=config.EPOCHS)
     parser.add_argument('--batch-size', type=int, default=32)
     parser.add_argument('--time-steps', type=int, default=TIME_STEPS_DEFAULT)
     parser.add_argument('--split-index', type=int, default=DATA_SPLIT_INDEX)

@@ -7,17 +7,17 @@ from statsmodels.tsa.arima_model import ARIMA
 from statsmodels.stats.diagnostic import acorr_ljungbox
 from sklearn import metrics
 from utils import *
-#plt.rcParams['font.sans-serif'] = ['SimHei']    # for chinese text on plt
-#plt.rcParams['axes.unicode_minus'] = False      # for chinese text negative symbol '-' on plt
+import config
 
-data = pd.read_csv('./601988.SH.csv')
-test_set2 = data.loc[3501:, :] 
+data = pd.read_csv(f'./{config.DATASET_NAME}')
+split_idx = config.get_split_index(len(data))
+test_set2 = data.loc[split_idx:, :] 
 data.index = pd.to_datetime(data['trade_date'], format='%Y%m%d') 
 data = data.drop(['ts_code', 'trade_date'], axis=1)
 data = pd.DataFrame(data, dtype=np.float64)
 
-training_set = data.loc['2007-01-04':'2021-06-21', :]  # 3501
-test_set = data.loc['2021-06-22':, :]  # 180
+training_set = data.iloc[:split_idx, :]
+test_set = data.iloc[split_idx:, :]
 
 plt.figure(figsize=(10, 6))
 plt.plot(training_set['close'], label='training_set')
@@ -124,7 +124,7 @@ adf_test(temp)
 adf_test(temp1)
 
 predictions_ARIMA_diff = pd.Series(model.fittedvalues, copy=True)
-predictions_ARIMA_diff = predictions_ARIMA_diff[3479:]
+predictions_ARIMA_diff = predictions_ARIMA_diff[split_idx-20:] # Just showing some recent diffs
 print('#', predictions_ARIMA_diff)
 plt.figure(figsize=(10, 6))
 plt.plot(training_data_diff, label="diff_1")

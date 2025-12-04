@@ -95,37 +95,35 @@ def NormalizeMult(data):
     print(normalize.shape)
     for i in range(0, data.shape[1]):
         list = data[:, i]
-        listlow, listhigh = np.percentile(list, [0, 100])
+        median = np.median(list)
+        q75, q25 = np.percentile(list, [75, 25])
+        iqr = q75 - q25
         # print(i)
-        normalize[i, 0] = listlow
-        normalize[i, 1] = listhigh
-        delta = listhigh - listlow
-        if delta != 0:
+        normalize[i, 0] = median
+        normalize[i, 1] = iqr
+        if iqr != 0:
             for j in range(0, data.shape[0]):
-                data[j, i] = (data[j, i] - listlow)/delta
+                data[j, i] = (data[j, i] - median)/iqr
     # np.save("./normalize.npy",normalize)
     return data, normalize
 
 def FNormalizeMult(data, normalize):
     #inverse NormalizeMult
     data = np.array(data)
-    listlow = normalize[0]
-    listhigh = normalize[1]
-    delta = listhigh - listlow
-    if delta != 0:
-        for i in range(len(data)):
-            data[i, 0] = data[i, 0] * delta + listlow
+    median = normalize[0]
+    iqr = normalize[1]
+    for i in range(len(data)):
+        data[i, 0] = data[i, 0] * iqr + median
     return data
 
 def NormalizeMultUseData(data,normalize):
     data = np.array(data)
     for i in range(0, data.shape[1]):
-        listlow = normalize[i, 0]
-        listhigh = normalize[i, 1]
-        delta = listhigh - listlow
-        if delta != 0:
+        median = normalize[i, 0]
+        iqr = normalize[i, 1]
+        if iqr != 0:
             for j in range(0,data.shape[0]):
-                data[j,i]  =  (data[j,i] - listlow)/delta
+                data[j,i]  =  (data[j,i] - median)/iqr
     return  data
 
 def data_split(sequence, n_timestamp):
@@ -169,5 +167,7 @@ def prepare_data(series, n_test, n_in, n_out):
     values = series.values
     supervised_data = series_to_supervised(values, n_in, n_out)
     print('supervised_data', supervised_data)
-    train, test = supervised_data.loc[:3499, :], supervised_data.loc[3500:, :]
+    # Use n_test to determine split point from the end
+    split_idx = len(supervised_data) - n_test
+    train, test = supervised_data.iloc[:split_idx, :], supervised_data.iloc[split_idx:, :]
     return train, test
