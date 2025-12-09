@@ -5,8 +5,9 @@ import numpy as np
 from sklearn import metrics
 from utils import *
 from model import *
+import config
 
-data1 = pd.read_csv("./historico_b3_filtrado.csv")
+data1 = pd.read_csv(f"./{config.DATASET_NAME}")
 data1.index = pd.to_datetime(data1['trade_date'], format='%Y%m%d')
 #data1 = data1.drop(['ts_code', 'trade_date', 'turnover_rate', 'volume_ratio', 'pb', 'total_share', 'float_share', 'free_share'], axis=1)
 data1 = data1.loc[:, ['open', 'high', 'low', 'close', 'volume', 'amount']]
@@ -15,8 +16,9 @@ data_yuan = data1
 #residuals.index = pd.to_datetime(residuals['trade_date'])
 #residuals.pop('trade_date')
 #data1 = pd.merge(data1, residuals, on='trade_date')
-data = data1.iloc[1:3500, :] 
-data2 = data1.iloc[3500:, :] 
+split_idx = config.get_split_index(len(data_yuan))
+data = data1.iloc[1:split_idx, :] 
+data2 = data1.iloc[split_idx:, :] 
 
 TIME_STEPS = 20
 
@@ -57,7 +59,12 @@ y_hat, y_test = PredictWithData(data2, data_yuan, name, 'stock_model.h5',6)
 y_hat = np.array(y_hat, dtype='float64')
 y_test = np.array(y_test, dtype='float64')
 evaluation_metric(y_test,y_hat)
-time = pd.Series(data1.index[3500:])
+
+#time = pd.Series(data1.index[3500:])
+start_plot_index = split_idx + TIME_STEPS
+end_plot_index = start_plot_index + len(y_test)
+time = data1.index[start_plot_index : end_plot_index]
+
 plt.plot(time, y_test, label='True')
 plt.plot(time, y_hat, label='Prediction')
 plt.title('Hybrid model prediction')

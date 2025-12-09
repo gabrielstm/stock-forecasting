@@ -59,7 +59,12 @@ y_hat, y_test = PredictWithData(data2, data_yuan, name, 'stock_model.h5',7)
 y_hat = np.array(y_hat, dtype='float64')
 y_test = np.array(y_test, dtype='float64')
 evaluation_metric(y_test,y_hat)
-time = pd.Series(data1.index[3500:])
+
+#time = pd.Series(data1.index[3500:])
+start_plot_index = split_idx + TIME_STEPS
+end_plot_index = start_plot_index + len(y_test)
+time = data1.index[start_plot_index : end_plot_index]
+
 plt.plot(time, y_test, label='True')
 plt.plot(time, y_hat, label='Prediction')
 plt.title('Hybrid model prediction')

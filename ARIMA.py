@@ -114,6 +114,13 @@ plt.show()
 
 model2 = sm.tsa.ARIMA(endog=data['close'], order=(2, 1, 0)).fit()
 residuals = pd.DataFrame(model2.resid)
+# Teste de Ljung-Box nos Resíduos
+print("\n--- Teste de Ljung-Box nos Resíduos do ARIMA(2, 1, 0) ---")
+# Aplicamos o teste aos resíduos (primeira coluna do DataFrame)
+# Lags = 10 é um valor comum
+ljungbox_results = acorr_ljungbox(residuals.iloc[:, 0], lags=10, boxpierce=True, return_df=True)
+print(ljungbox_results)
+print("------------------------------------------------------------------")
 fig, ax = plt.subplots(1, 2)
 residuals.plot(title="Residuals", ax=ax[0])
 residuals.plot(kind='kde', title='Density', ax=ax[1])
