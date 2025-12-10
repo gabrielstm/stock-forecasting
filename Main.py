@@ -10,7 +10,7 @@ import config
 data1 = pd.read_csv(f"./{config.DATASET_NAME}")
 data1.index = pd.to_datetime(data1['trade_date'], format='%Y%m%d')
 #data1 = data1.drop(['ts_code', 'trade_date', 'turnover_rate', 'volume_ratio', 'pb', 'total_share', 'float_share', 'free_share'], axis=1)
-data1 = data1.loc[:, ['open', 'high', 'low', 'close', 'volume', 'amount']]
+data1 = data1.loc[:, ['open', 'high', 'low', 'close', 'vol', 'amount']]
 data_yuan = data1
 residuals = pd.read_csv('./ARIMA_residuals1.csv')
 residuals.index = pd.to_datetime(residuals['trade_date'])
