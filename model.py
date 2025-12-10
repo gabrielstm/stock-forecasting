@@ -56,7 +56,7 @@ def PredictWithData(data,data_yuan,name,modelname,INPUT_DIMS = 13,TIME_STEPS = 2
     print(data.columns)
     yindex = data.columns.get_loc(name)
     data = np.array(data, dtype='float64')
-    data, normalize = NormalizeMult(data)
+    data, normalize = NormalizeMult_artigo(data)
     data_y = data[:, yindex]
     data_y = data_y.reshape(data_y.shape[0], 1)
 

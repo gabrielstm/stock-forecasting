@@ -1,3 +1,4 @@
+# modelsemxgb.py
 from tensorflow.keras.optimizers import Adam
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -8,6 +9,7 @@ from model import *
 import config
 
 data1 = pd.read_csv(f"./{config.DATASET_NAME}")
+#data1 = pd.read_csv("./601988.SH.csv")
 data1.index = pd.to_datetime(data1['trade_date'], format='%Y%m%d')
 #data1 = data1.drop(['ts_code', 'trade_date', 'turnover_rate', 'volume_ratio', 'pb', 'total_share', 'float_share', 'free_share'], axis=1)
 data1 = data1.loc[:, ['open', 'high', 'low', 'close', 'volume', 'amount']]
@@ -46,6 +48,27 @@ plt.title('Training and Validation Loss')
 plt.legend()
 plt.show()
 
+
+def PredictWithData_semxgb(data,data_yuan,name,modelname,INPUT_DIMS = 13,TIME_STEPS = 20):
+    yindex = data.columns.get_loc(name)
+    data = np.array(data, dtype='float64')
+    data, normalize = NormalizeMult_artigo(data)
+    data_y = data[:, yindex]
+    data_y = data_y.reshape(data_y.shape[0], 1)
+
+    testX, _ = create_dataset(data)
+    _, testY = create_dataset(data_y)
+    print("testX Y shape is:", testX.shape, testY.shape)
+    if len(testY.shape) == 1:
+        testY = testY.reshape(-1, 1)
+
+    model = attention_model(INPUT_DIMS)
+    model.load_weights(modelname)
+    model.summary()
+    y_hat =  model.predict(testX)
+    #testY, y_hat = xgb_scheduler(data_yuan, y_hat)
+    return y_hat, testY
+
 # normalize = np.load("normalize.npy")
 # loadmodelname = "model.h5"
 
@@ -56,7 +79,7 @@ class Config:
 config = Config()
 name = config.dimname
 # normalize = np.load("normalize.npy")
-y_hat, y_test = PredictWithData(data2, data_yuan, name, 'stock_model.h5',7)
+y_hat, y_test = PredictWithData_semxgb(data2, data_yuan, name, 'stock_model.h5',7)
 y_hat = np.array(y_hat, dtype='float64')
 y_test = np.array(y_test, dtype='float64')
 evaluation_metric(y_test,y_hat)
