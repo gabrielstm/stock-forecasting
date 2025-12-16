@@ -167,9 +167,15 @@ def prepare_data(series, n_test, n_in, n_out):
     values = series.values
     supervised_data = series_to_supervised(values, n_in, n_out)
     print('supervised_data', supervised_data)
+    n_vars = series.shape[1]
+    first_t_index = n_vars * n_in
+    target_y = supervised_data.iloc[:, -1]
+    X_features = supervised_data.iloc[:, :first_t_index]
+    supervised_data_cleaned = pd.concat([X_features, target_y], axis=1)
+    print('supervised_data_cleaned', supervised_data_cleaned)
     # Use n_test to determine split point from the end
     split_idx = len(supervised_data) - n_test
-    train, test = supervised_data.iloc[:split_idx, :], supervised_data.iloc[split_idx:, :]
+    train, test = supervised_data_cleaned.iloc[:split_idx, :], supervised_data_cleaned.iloc[split_idx:, :]
     return train, test
 
 def NormalizeMult_artigo(data):
@@ -190,3 +196,8 @@ def NormalizeMult_artigo(data):
                 data[j, i] = (data[j, i] - listlow)/delta
     # np.save("./normalize.npy",normalize)
     return data, normalize
+
+def get_split_index(total_rows):
+    TRAIN_LEN = 80
+    TEST_LEN = 20
+    return int(total_rows * (TRAIN_LEN / (TRAIN_LEN + TEST_LEN)))

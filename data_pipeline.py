@@ -26,7 +26,7 @@ del _temp_df
 TIME_STEPS_DEFAULT = config.WINDOW_SIZE
 FEATURE_COLUMNS = ['open', 'high', 'low', 'close', 'volume', 'amount']
 TARGET_COLUMN = 'close'
-RESIDUAL_CSV = 'ARIMA_residuals1.csv'
+RESIDUAL_CSV = 'data/ARIMA_residuals1.csv'
 
 
 def load_merged_frame(

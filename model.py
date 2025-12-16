@@ -5,6 +5,7 @@ from tensorflow.keras.models import Sequential
 from utils import *
 import numpy as np
 import xgboost as xgb
+import os
 
 def attention_3d_block_merge(inputs,single_attention_vector = False):
     # inputs.shape = (batch_size, time_steps, input_dim)
@@ -70,7 +71,7 @@ def PredictWithData(data,data_yuan,name,modelname,INPUT_DIMS = 13,TIME_STEPS = 2
     model.load_weights(modelname)
     model.summary()
     y_hat =  model.predict(testX)
-    testY, y_hat = xgb_scheduler(data_yuan, y_hat)
+    testY, y_hat = xgb_scheduler(data_yuan, data)
     return y_hat, testY
 
 def lstm(model_type,X_train,yuan_X_train):
@@ -113,7 +114,11 @@ def lstm(model_type,X_train,yuan_X_train):
 
 def xgb_scheduler(data,y_hat):
     close = data.pop('close')
-    data.insert(5, 'close', close)
+
+    # Colocando close na última coluna
+    data.insert(len(data.columns), 'close', close)
+    #data.insert(5, 'close', close)
+
     train, test = prepare_data(data, n_test=len(y_hat), n_in=6, n_out=1)
     testY, y_hat2 = walk_forward_validation(train, test)
     return testY, y_hat2
@@ -137,11 +142,30 @@ def walk_forward_validation(train, test):
     train = train.values
     history = [x for x in train]
     # print('history', history)
-    for i in range(len(test)):
-        testX, testy = test.iloc[i, :-1], test.iloc[i, -1]
-        # print('i', i, testX, testy)
-        yhat = xgboost_forecast(history, testX)
-        predictions.append(yhat)
-        history.append(test.iloc[i, :])
-        print(i+1, '>expected=%.6f, predicted=%.6f' % (testy, yhat))
+    output_dir = "results"
+    filename = "xgb_predictions_results.txt"
+    
+    # Cria a pasta 'results' se ela não existir
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Combina o diretório e o nome do arquivo
+    filepath = os.path.join(output_dir, filename)
+    
+    # Abrindo o arquivo no caminho especificado (filepath)
+    with open(filepath, 'w') as f:
+        f.write("Step | Expected | Predicted\n")
+        f.write("--------------------------------\n")
+        
+        # O loop continua...
+        for i in range(len(test)):
+            testX, testy = test.iloc[i, :-1], test.iloc[i, -1]
+            
+            yhat = xgboost_forecast(history, testX)
+            predictions.append(yhat)
+            history.append(test.iloc[i, :])
+            
+            line = f"{i+1:<4} | {testy:8.6f} | {yhat:8.6f}\n"
+            f.write(line)
+    
+    print(f"\nResultados salvos com sucesso em: {filepath}")
     return test.iloc[:, -1],predictions

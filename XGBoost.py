@@ -5,7 +5,7 @@ from utils import *
 from model import walk_forward_validation
 import config
 
-data = pd.read_csv(f'./{config.DATASET_NAME}')
+data = pd.read_csv(f'./data/{config.DATASET_NAME}')
 data.index = pd.to_datetime(data['trade_date'], format='%Y%m%d')
 data = data.loc[:, ['open', 'high', 'low', 'close', 'volume', 'amount']]
 # data = pd.DataFrame(data, dtype=np.float64)
@@ -13,14 +13,14 @@ close = data.pop('close')
 data.insert(5, 'close', close)
 split_idx = config.get_split_index(len(data))
 data1 = data.iloc[split_idx:, 5]
-residuals = pd.read_csv('./ARIMA_residuals1.csv')
+residuals = pd.read_csv('./data/ARIMA_residuals1.csv')
 residuals.index = pd.to_datetime(residuals['trade_date'])
 residuals.pop('trade_date')
 merge_data = pd.merge(data, residuals, on='trade_date')
 #merge_data = merge_data.drop(labels='2007-01-04', axis=0)
 time = pd.Series(data.index[split_idx:])
 
-Lt = pd.read_csv('./ARIMA.csv')
+Lt = pd.read_csv('./data/ARIMA.csv')
 Lt = Lt.drop('trade_date', axis=1)
 Lt = np.array(Lt)
 Lt = Lt.flatten().tolist()

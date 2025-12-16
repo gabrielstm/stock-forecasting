@@ -101,7 +101,7 @@ def train(args):
     y_pred_residual = inverse_scale(preds, normalize, target_idx)
 
     # Load ARIMA predictions
-    arima_preds = pd.read_csv('ARIMA.csv')
+    arima_preds = pd.read_csv('data/ARIMA.csv')
     arima_preds['trade_date'] = pd.to_datetime(arima_preds['trade_date'])
     arima_preds = arima_preds.set_index('trade_date')
 
