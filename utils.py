@@ -87,6 +87,7 @@ def GetMAPE_Order(y_hat,y_test):
     sum = np.mean(np.abs((y_hat - y_test) / y_test)) * 100
     return sum
 
+""""
 def NormalizeMult(data):
     data = np.array(data)
     normalize = np.arange(2*data.shape[1], dtype='float64')
@@ -106,6 +107,31 @@ def NormalizeMult(data):
                 data[j, i] = (data[j, i] - median)/iqr
     # np.save("./normalize.npy",normalize)
     return data, normalize
+"""
+
+def NormalizeMult(data):
+    data = np.array(data, dtype='float64')
+    # Cria matriz para armazenar [mediana, iqr] para cada coluna
+    normalize = np.zeros((data.shape[1], 2), dtype='float64')
+
+    for i in range(data.shape[1]):
+        col_data = data[:, i]
+        median = np.median(col_data)
+        q75, q25 = np.percentile(col_data, [75, 25])
+        iqr = q75 - q25
+        
+        normalize[i, 0] = median
+        normalize[i, 1] = iqr
+        
+        if iqr != 0:
+            # Operação vetorizada: muito mais rápida que o loop for j
+            data[:, i] = (col_data - median) / iqr
+        else:
+            # Se o IQR for 0 (coluna constante), apenas remove a mediana
+            data[:, i] = col_data - median
+            
+    return data, normalize
+
 
 def FNormalizeMult(data, normalize):
     #inverse NormalizeMult

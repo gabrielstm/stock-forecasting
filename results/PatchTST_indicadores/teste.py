@@ -9,7 +9,7 @@ import tensorflow as tf
 from sklearn import metrics
 from tensorflow.keras import layers, models, optimizers
 
-from data_pipeline import (DATA_SPLIT_INDEX, FEATURE_COLUMNS, RESIDUAL_CSV,
+from data_pipeline_indicadores import (DATA_SPLIT_INDEX, FEATURE_COLUMNS, RESIDUAL_CSV,
                            STOCK_CSV, TARGET_COLUMN, TIME_STEPS_DEFAULT,
                            inverse_scale, prepare_windows)
 from utils import evaluation_metric
@@ -192,22 +192,26 @@ def save_test_results(model_name: str, dates, y_true, y_pred):
 
 
 def train(args):
-    # Use residuals as features and target
-    feature_columns = ['0']
-    target_column = '0'
+    # 1. Ajuste das colunas para prever o preço bruto
+    # Se você quiser usar apenas o histórico do close para prever o close:
+    feature_columns = ['open', 'high', 'low', 'close', 'volume'] 
+    target_column = 'close' # O alvo agora é o próprio preço
 
+    # 2. Carregamento dos dados via data_pipeline
+    # Certifique-se que o prepare_windows aponte para o CSV original com preços
     train_X, train_y, test_X, test_y, normalize, target_idx, test_dates = prepare_windows(
         time_steps=args.time_steps,
         split_index=args.split_index,
         target_column=target_column,
         feature_columns=feature_columns,
         stock_csv=STOCK_CSV,
-        residual_csv=RESIDUAL_CSV
+        residual_csv=RESIDUAL_CSV # Pode ser ignorado se não usar a coluna '0'
     )
 
+    # 3. Construção do modelo PatchTST
     model = build_patchtst_model(
         time_steps=args.time_steps,
-        num_features=train_X.shape[2],
+        num_features=train_X.shape[2], # Vai ser 5 (OHLCV)
         patch_len=args.patch_len,
         stride=args.patch_stride,
         d_model=args.d_model,
@@ -220,59 +224,36 @@ def train(args):
     optimizer = optimizers.Adam(learning_rate=args.learning_rate)
     model.compile(optimizer=optimizer, loss='mse')
 
-    model.summary()
-
+    # Treinamento
     history = model.fit(
-        train_X,
-        train_y,
+        train_X, train_y,
         validation_data=(test_X, test_y),
         epochs=args.epochs,
         batch_size=args.batch_size,
         verbose=1
     )
 
-    print("Gerando gráfico de perda para PatchTST...")
-    plot_loss(history, 'patchtst_loss_curve.png', not args.no_plot)
-
+    # 4. Predição Direta
     preds = model.predict(test_X, batch_size=args.batch_size).flatten()
 
-    y_true_residual = inverse_scale(test_y, normalize, target_idx)
-    y_pred_residual = inverse_scale(preds, normalize, target_idx)
-    
-    # Load ARIMA predictions
-    arima_preds = pd.read_csv('data/ARIMA.csv')
-    arima_preds['trade_date'] = pd.to_datetime(arima_preds['trade_date'])
-    arima_preds = arima_preds.set_index('trade_date')
+    # Inverter a escala para obter o preço em valor monetário
+    y_true_final = inverse_scale(test_y, normalize, target_idx)
+    y_pred_final = inverse_scale(preds, normalize, target_idx)
 
-    # Create DataFrame for predicted residuals
-    dates = test_dates[: len(y_pred_residual)]
-    pred_residuals_df = pd.DataFrame({
-        'trade_date': dates,
-        'residual_pred': y_pred_residual
-    }).set_index('trade_date')
+    print(f"DEBUG: Coluna Alvo índice: {target_idx}")
+    print(f"DEBUG: Mediana usada: {normalize[target_idx][0]} | IQR usado: {normalize[target_idx][1]}")
+    
+    # 5. Avaliação Direta (Sem somar ARIMA)
+    print("Avaliação da Previsão Direta PatchTST (Preço Close):")
+    evaluation_metric(y_true_final, y_pred_final)
 
-    # Combine ARIMA + Residuals
-    arima_preds = arima_preds.rename(columns={'close': 'close'})
-    pred_residuals_df = pred_residuals_df.rename(columns={'residual_pred': 'close'})
+    # Plotagem
+    dates = test_dates[: len(y_pred_final)]
+    plot_results(dates, y_true_final, y_pred_final, 'patchtst_direct_close.png', not args.no_plot)
+    save_test_results('patchtst_direct', dates, y_true_final, y_pred_final)
     
-    final_pred = pd.concat([arima_preds, pred_residuals_df]).groupby('trade_date')['close'].sum()
-    
-    # Load Real Stock Price for comparison
-    stock_df = pd.read_csv(STOCK_CSV)
-    stock_df['trade_date'] = pd.to_datetime(stock_df['trade_date'], format='%Y%m%d')
-    stock_df = stock_df.set_index('trade_date')
-    
-    # Align with final_pred
-    test_dates_intersection = final_pred.index.intersection(stock_df.index).intersection(dates)
-    
-    final_pred = final_pred.loc[test_dates_intersection]
-    y_true_final = stock_df.loc[test_dates_intersection, 'close']
-    
-    print("Evaluation on Final Prediction (ARIMA + Residuals):")
-    evaluation_metric(y_true_final.values, final_pred.values)
-
-    plot_results(test_dates_intersection, y_true_final.values, final_pred.values, 'patchtst_predictions.png', not args.no_plot)
-    save_test_results('patchtst', test_dates_intersection, y_true_final.values, final_pred.values)
+    # Gráfico de Perda
+    plot_loss(history, 'patchtst_direct_loss.png', not args.no_plot)
 
     return history
 

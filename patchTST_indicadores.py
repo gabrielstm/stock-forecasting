@@ -9,7 +9,7 @@ import tensorflow as tf
 from sklearn import metrics
 from tensorflow.keras import layers, models, optimizers
 
-from data_pipeline import (DATA_SPLIT_INDEX, FEATURE_COLUMNS, RESIDUAL_CSV,
+from data_pipeline_indicadores import (DATA_SPLIT_INDEX, FEATURE_COLUMNS, RESIDUAL_CSV,
                            STOCK_CSV, TARGET_COLUMN, TIME_STEPS_DEFAULT,
                            inverse_scale, prepare_windows)
 from utils import evaluation_metric
