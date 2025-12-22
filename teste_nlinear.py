@@ -94,10 +94,9 @@ def save_test_results(model_name: str, dates, y_true, y_pred):
 
 def train(args):
     # Use residuals as features and target
-    #feature_columns = ['0']
-    feature_columns = ['0', 'open', 'high', 'low', 'close', 'volume', 'amount', 'MACD_Line', 'MACD_Signal', 'MACD_Hist', 'RSI', 'EMA12', 'ATR', 'KC_Width', 'OBV', 'BB_Width', 'CCI']
-    #feature_columns = ['0', 'open', 'high', 'low', 'close', 'volume', 'amount']
-    target_column = '0'
+    feature_columns = ['open', 'high', 'low', 'close', 'volume', 'amount', 'MACD_Line', 'MACD_Signal', 'MACD_Hist', 'RSI', 'EMA12', 'ATR', 'KC_Width', 'OBV', 'BB_Width', 'CCI']
+    #feature_columns = ['open', 'high', 'low', 'close', 'volume', 'amount']
+    target_column = 'close'
 
     train_X, train_y, test_X, test_y, normalize, target_idx, test_dates = prepare_windows(
         args.time_steps, args.split_index, target_column=target_column, feature_columns=feature_columns
@@ -118,49 +117,22 @@ def train(args):
 
     preds = model.predict(test_X, batch_size=args.batch_size).flatten()
 
-    y_true_residual = inverse_scale(test_y, normalize, target_idx)
-    y_pred_residual = inverse_scale(preds, normalize, target_idx)
+    y_true_final = inverse_scale(test_y, normalize, target_idx)
+    y_pred_final = inverse_scale(preds, normalize, target_idx)
 
-    # Load ARIMA predictions
-    arima_preds = pd.read_csv('data/ARIMA.csv')
-    arima_preds['trade_date'] = pd.to_datetime(arima_preds['trade_date'])
-    arima_preds = arima_preds.set_index('trade_date')
+    # Ajuste das datas para o gráfico
+    dates = test_dates[: len(y_pred_final)]
+    
+    # 3. Avaliação e Plotagem Direta
+    print("Evaluation on Direct Price Prediction (Close):")
+    evaluation_metric(y_true_final, y_pred_final)
 
-    # Create DataFrame for predicted residuals
-    dates = test_dates[: len(y_pred_residual)]
-    pred_residuals_df = pd.DataFrame({
-        'trade_date': dates,
-        'residual_pred': y_pred_residual
-    }).set_index('trade_date')
-
-    # Combine ARIMA + Residuals
-    arima_preds = arima_preds.rename(columns={'close': 'close'})
-    pred_residuals_df = pred_residuals_df.rename(columns={'residual_pred': 'close'})
+    # Plotagem sem a necessidade de somar nada
+    plot_results(dates, y_true_final, y_pred_final, 
+                'NLinear Direct Prediction vs Real', 'nlinear_direct_predictions.png', not args.no_plot)
     
-    # Filter to common dates to avoid NaNs when summing if ranges differ slightly
-    # But LSTM uses concat and groupby sum.
-    final_pred = pd.concat([arima_preds, pred_residuals_df]).groupby('trade_date')['close'].sum()
-    
-    # Load Real Stock Price for comparison
-    stock_df = pd.read_csv(STOCK_CSV)
-    stock_df['trade_date'] = pd.to_datetime(stock_df['trade_date'], format='%Y%m%d')
-    stock_df = stock_df.set_index('trade_date')
-    
-    # Align with final_pred (intersection of dates)
-    # We only care about the test period where we have predictions
-    test_dates_intersection = final_pred.index.intersection(stock_df.index).intersection(dates)
-    
-    final_pred = final_pred.loc[test_dates_intersection]
-    y_true_final = stock_df.loc[test_dates_intersection, 'close']
-    
-    print("Evaluation on Final Prediction (ARIMA + Residuals):")
-    evaluation_metric(y_true_final.values, final_pred.values)
-
-    plot_results(test_dates_intersection, y_true_final.values, final_pred.values, 'NLinear (ARIMA+Residual) vs Real', 'nlinear_predictions.png', not args.no_plot)
-    save_test_results('nlinear', test_dates_intersection, y_true_final.values, final_pred.values)
-
-    print("Gerando gráfico de perda...")
-    plot_loss(history, 'nlinear_loss_curve.png', not args.no_plot)
+    save_test_results('nlinear_direct', dates, y_true_final, y_pred_final)
+    plot_loss(history, 'nlinear_direct_loss_curve.png', not args.no_plot)
 
     return history
 

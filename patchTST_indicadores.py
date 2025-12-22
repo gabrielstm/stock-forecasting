@@ -194,6 +194,8 @@ def save_test_results(model_name: str, dates, y_true, y_pred):
 def train(args):
     # Use residuals as features and target
     feature_columns = ['0']
+    #feature_columns = ['0', 'open', 'high', 'low', 'close', 'volume', 'amount', 'MACD_Line', 'MACD_Signal', 'MACD_Hist', 'RSI', 'EMA12', 'ATR', 'KC_Width', 'OBV', 'BB_Width', 'CCI']
+    #feature_columns = ['0', 'open', 'high', 'low', 'close', 'volume', 'amount']
     target_column = '0'
 
     train_X, train_y, test_X, test_y, normalize, target_idx, test_dates = prepare_windows(

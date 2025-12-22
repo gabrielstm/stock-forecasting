@@ -194,7 +194,7 @@ def save_test_results(model_name: str, dates, y_true, y_pred):
 def train(args):
     # 1. Ajuste das colunas para prever o preço bruto
     # Se você quiser usar apenas o histórico do close para prever o close:
-    feature_columns = ['open', 'high', 'low', 'close', 'volume'] 
+    feature_columns = ['open', 'high', 'low', 'close', 'volume', 'amount', 'MACD_Line', 'MACD_Signal', 'MACD_Hist', 'RSI', 'EMA12', 'ATR', 'KC_Width', 'OBV', 'BB_Width', 'CCI']
     target_column = 'close' # O alvo agora é o próprio preço
 
     # 2. Carregamento dos dados via data_pipeline
@@ -241,6 +241,7 @@ def train(args):
     y_pred_final = inverse_scale(preds, normalize, target_idx)
 
     print(f"DEBUG: Coluna Alvo índice: {target_idx}")
+    print("DEBUG: Nome da Coluna Alvo:", target_column)
     print(f"DEBUG: Mediana usada: {normalize[target_idx][0]} | IQR usado: {normalize[target_idx][1]}")
     
     # 5. Avaliação Direta (Sem somar ARIMA)
