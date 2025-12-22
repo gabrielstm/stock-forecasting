@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from sklearn import metrics
-from tensorflow.keras import layers, models, optimizers
+from tensorflow.keras import layers, models, optimizers, callbacks
 
 from data_pipeline_indicadores import (DATA_SPLIT_INDEX, FEATURE_COLUMNS, RESIDUAL_CSV,
                            STOCK_CSV, TARGET_COLUMN, TIME_STEPS_DEFAULT,
@@ -18,18 +18,39 @@ import config
 RESULTS_DIR = Path('results')
 RESULTS_DIR.mkdir(exist_ok=True)
 
-def build_model(input_shape):
-    model = models.Sequential(
-        [
-            layers.Input(shape=input_shape),
-            layers.Flatten(),
-            layers.Dense(256, activation='relu'),
-            layers.Dropout(0.3),
-            layers.Dense(128, activation='relu'),
-            layers.Dense(64, activation='relu'),
-            layers.Dense(1)
-        ]
-    )
+def build_model(input_shape, target_idx=0, use_regularization=True):
+    """
+    NLinear model implementation for time series forecasting.
+    
+    The NLinear architecture:
+    1. Subtracts the last timestep value to handle non-stationarity
+    2. Applies a linear transformation
+    3. Adds back the last timestep value for the final prediction
+    
+    This simple approach often outperforms complex models in many scenarios.
+    """
+    inputs = layers.Input(shape=input_shape)
+    
+    # NLinear: subtract last value to handle non-stationarity
+    seq_last = layers.Lambda(lambda x: x[:, -1:, :])(inputs)
+    x = layers.Subtract()([inputs, seq_last])
+    
+    # Flatten the input
+    x = layers.Flatten()(x)
+    
+    # Linear layer with optional L2 regularization to prevent overfitting
+    if use_regularization:
+        x = layers.Dense(1, kernel_regularizer=tf.keras.regularizers.l2(0.001))(x)
+    else:
+        x = layers.Dense(1)(x)
+    
+    # Add back the last value of the target feature
+    target_last = layers.Lambda(lambda x: x[:, -1:, target_idx])(inputs)
+    target_last = layers.Reshape((1,))(target_last)
+    
+    outputs = layers.Add()([x, target_last])
+    
+    model = models.Model(inputs=inputs, outputs=outputs)
     return model
 
 
@@ -102,16 +123,50 @@ def train(args):
         args.time_steps, args.split_index, target_column=target_column, feature_columns=feature_columns
     )
 
-    model = build_model((args.time_steps, train_X.shape[2]))
-    optimizer = optimizers.Adam(learning_rate=args.learning_rate)
-    model.compile(optimizer=optimizer, loss='mse')
+    # Split training data into train and validation sets (80/20 split)
+    # CRITICAL: This prevents look-ahead bias by NOT using test data during training
+    val_split = int(len(train_X) * 0.8)
+    
+    X_train = train_X[:val_split]
+    y_train = train_y[:val_split]
+    X_val = train_X[val_split:]
+    y_val = train_y[val_split:]
+    
+    print(f"Train samples: {len(X_train)}, Validation samples: {len(X_val)}, Test samples: {len(test_X)}")
 
+    model = build_model((args.time_steps, train_X.shape[2]), target_idx=target_idx, 
+                       use_regularization=args.use_regularization)
+    
+    # Reduced learning rate for better stability
+    optimizer = optimizers.Adam(learning_rate=args.learning_rate)
+    model.compile(optimizer=optimizer, loss='mse', metrics=['mae'])
+
+    # Callbacks for better training
+    early_stop = callbacks.EarlyStopping(
+        monitor='val_loss',
+        patience=args.patience,
+        restore_best_weights=True,
+        verbose=1
+    )
+    
+    reduce_lr = callbacks.ReduceLROnPlateau(
+        monitor='val_loss',
+        factor=0.5,
+        patience=args.patience // 2,
+        min_lr=1e-7,
+        verbose=1
+    )
+    
+    model_callbacks = [early_stop, reduce_lr]
+
+    # Train with proper validation set (NOT test set)
     history = model.fit(
-        train_X,
-        train_y,
-        validation_data=(test_X, test_y),
+        X_train,
+        y_train,
+        validation_data=(X_val, y_val),
         epochs=args.epochs,
         batch_size=args.batch_size,
+        callbacks=model_callbacks,
         verbose=1
     )
 
@@ -138,13 +193,26 @@ def train(args):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Baseline NLinear model for stock forecasting.')
-    parser.add_argument('--epochs', type=int, default=config.EPOCHS)
-    parser.add_argument('--batch-size', type=int, default=32)
-    parser.add_argument('--time-steps', type=int, default=TIME_STEPS_DEFAULT)
-    parser.add_argument('--split-index', type=int, default=DATA_SPLIT_INDEX)
-    parser.add_argument('--learning-rate', type=float, default=1e-3)
-    parser.add_argument('--no-plot', action='store_true')
+    parser = argparse.ArgumentParser(description='NLinear model for stock trading forecasting.')
+    parser.add_argument('--epochs', type=int, default=config.EPOCHS,
+                       help='Maximum number of training epochs')
+    parser.add_argument('--batch-size', type=int, default=32,
+                       help='Batch size for training')
+    parser.add_argument('--time-steps', type=int, default=TIME_STEPS_DEFAULT,
+                       help='Number of time steps in input sequence')
+    parser.add_argument('--split-index', type=int, default=DATA_SPLIT_INDEX,
+                       help='Index to split train/test data')
+    parser.add_argument('--learning-rate', type=float, default=5e-4,
+                       help='Initial learning rate (reduced for stability)')
+    parser.add_argument('--patience', type=int, default=20,
+                       help='Early stopping patience')
+    parser.add_argument('--use-regularization', action='store_true', default=True,
+                       help='Use L2 regularization')
+    parser.add_argument('--no-regularization', dest='use_regularization', 
+                       action='store_false',
+                       help='Disable L2 regularization')
+    parser.add_argument('--no-plot', action='store_true',
+                       help='Disable plot display')
     return parser.parse_args()
 
 
