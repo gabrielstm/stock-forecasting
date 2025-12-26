@@ -9,7 +9,7 @@ import tensorflow as tf
 from sklearn import metrics
 from tensorflow.keras import layers, models, optimizers
 
-from data_pipeline import (DATA_SPLIT_INDEX, FEATURE_COLUMNS, RESIDUAL_CSV,
+from data_pipeline_indicadores import (DATA_SPLIT_INDEX, FEATURE_COLUMNS, RESIDUAL_CSV,
                            STOCK_CSV, TARGET_COLUMN, TIME_STEPS_DEFAULT,
                            inverse_scale, prepare_windows)
 from utils import evaluation_metric
@@ -157,7 +157,7 @@ def plot_results(dates, y_true, y_pred, save_name: str, show_plot: bool):
     plt.plot(dates, y_pred, label='PatchTST')
     plt.xlabel('Time')
     plt.ylabel('Close')
-    plt.title('PatchTST: Stock Price Prediction')
+    plt.title('PatchTST_features: Stock Price Prediction')
     plt.legend()
     plt.tight_layout()
     output_path = RESULTS_DIR / save_name
@@ -192,8 +192,8 @@ def save_test_results(model_name: str, dates, y_true, y_pred):
 
 
 def train(args):
-    # Use residuals as features and target
-    feature_columns = ['0']
+
+    feature_columns = ['0', 'open', 'high', 'low', 'close', 'volume', 'amount']
     target_column = '0'
 
     train_X, train_y, test_X, test_y, normalize, target_idx, test_dates = prepare_windows(

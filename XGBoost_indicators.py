@@ -7,7 +7,9 @@ import config
 
 data = pd.read_csv(f'./{config.DATASET_NAME}')
 data.index = pd.to_datetime(data['trade_date'], format='%Y%m%d')
-data = data.loc[:, ['open', 'high', 'low', 'close', 'volume', 'amount']]
+
+data = data.loc[:, ['open', 'high', 'low', 'close', 'volume', 'amount', 'MACD_Line', 'MACD_Signal', 'MACD_Hist', 'RSI', 'EMA12', 'ATR', 'KC_Width', 'OBV', 'BB_Width', 'CCI']]
+
 # data = pd.DataFrame(data, dtype=np.float64)
 close = data.pop('close')
 data.insert(5, 'close', close)
@@ -27,13 +29,13 @@ Lt = Lt.flatten().tolist()
 
 # n_test should be the length of the test set
 n_test = len(data1)
-train, test = prepare_data(residuals, n_test=n_test, n_in=6, n_out=1)
+train, test = prepare_data(merge_data, n_test=n_test, n_in=6, n_out=1)
 
 y, yhat = walk_forward_validation(train, test)
 plt.figure(figsize=(10, 6))
 plt.plot(time, y, label='Residuals')
 plt.plot(time, yhat, label='Predicted Residuals')
-plt.title('XGBoost: Residuals Prediction')
+plt.title('XGBoost_indicators: Residuals Prediction')
 plt.xlabel('Time', fontsize=12, verticalalignment='top')
 plt.ylabel('Residuals', fontsize=14, horizontalalignment='center')
 plt.legend()
@@ -45,7 +47,7 @@ evaluation_metric(data1, finalpredicted_stock_price)
 plt.figure(figsize=(10, 6))
 plt.plot(time, data1, label='Stock Price')
 plt.plot(time, finalpredicted_stock_price, label='Predicted Stock Price')
-plt.title('XGBoost: Stock Price Prediction')
+plt.title('XGBoost_indicators: Stock Price Prediction')
 plt.xlabel('Time', fontsize=12, verticalalignment='top')
 plt.ylabel('Close', fontsize=14, horizontalalignment='center')
 plt.legend()

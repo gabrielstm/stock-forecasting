@@ -8,7 +8,7 @@ import tensorflow as tf
 from sklearn import metrics
 from tensorflow.keras import layers, models, optimizers
 
-from data_pipeline import (DATA_SPLIT_INDEX, FEATURE_COLUMNS, RESIDUAL_CSV,
+from data_pipeline_indicadores import (DATA_SPLIT_INDEX, FEATURE_COLUMNS, RESIDUAL_CSV,
                            STOCK_CSV, TARGET_COLUMN, TIME_STEPS_DEFAULT,
                            inverse_scale, prepare_windows)
 from utils import evaluation_metric
@@ -93,8 +93,8 @@ def save_test_results(model_name: str, dates, y_true, y_pred):
 
 
 def train(args):
-    # Use residuals as features and target
-    feature_columns = ['0']
+
+    feature_columns = ['0', 'open', 'high', 'low', 'close', 'volume', 'amount', 'MACD_Line', 'MACD_Signal', 'MACD_Hist', 'RSI', 'EMA12', 'ATR', 'KC_Width', 'OBV', 'BB_Width', 'CCI']
     target_column = '0'
 
     train_X, train_y, test_X, test_y, normalize, target_idx, test_dates = prepare_windows(
@@ -154,7 +154,7 @@ def train(args):
     print("Evaluation on Final Prediction (ARIMA + Residuals):")
     evaluation_metric(y_true_final.values, final_pred.values)
 
-    plot_results(test_dates_intersection, y_true_final.values, final_pred.values, 'NLinear: Stock Price Prediction', 'nlinear_predictions.png', not args.no_plot)
+    plot_results(test_dates_intersection, y_true_final.values, final_pred.values, 'NLinear_indicators: Stock Price Prediction', 'nlinear_predictions.png', not args.no_plot)
     save_test_results('nlinear', test_dates_intersection, y_true_final.values, final_pred.values)
 
     print("Gerando gráfico de perda...")
