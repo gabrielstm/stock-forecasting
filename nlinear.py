@@ -18,18 +18,24 @@ import config
 RESULTS_DIR = Path('results')
 RESULTS_DIR.mkdir(exist_ok=True)
 
-def build_model(input_shape):
-    model = models.Sequential(
-        [
-            layers.Input(shape=input_shape),
-            layers.Flatten(),
-            layers.Dense(256, activation='relu'),
-            layers.Dropout(0.3),
-            layers.Dense(128, activation='relu'),
-            layers.Dense(64, activation='relu'),
-            layers.Dense(1)
-        ]
-    )
+def build_model(input_shape, target_idx=0):
+    inputs = layers.Input(shape=input_shape)
+    
+    # NLinear: subtract last value to handle non-stationarity
+    seq_last = layers.Lambda(lambda x: x[:, -1:, :])(inputs)
+    x = layers.Subtract()([inputs, seq_last])
+    
+    # Linear layer (the core of NLinear is being a linear model)
+    x = layers.Flatten()(x)
+    x = layers.Dense(1)(x)
+    
+    # Add back the last value of the target feature
+    target_last = layers.Lambda(lambda x: x[:, -1:, target_idx])(inputs)
+    target_last = layers.Reshape((1,))(target_last)
+    
+    outputs = layers.Add()([x, target_last])
+    
+    model = models.Model(inputs=inputs, outputs=outputs)
     return model
 
 
@@ -101,7 +107,7 @@ def train(args):
         args.time_steps, args.split_index, target_column=target_column, feature_columns=feature_columns
     )
 
-    model = build_model((args.time_steps, train_X.shape[2]))
+    model = build_model((args.time_steps, train_X.shape[2]), target_idx=target_idx)
     optimizer = optimizers.Adam(learning_rate=args.learning_rate)
     model.compile(optimizer=optimizer, loss='mse')
 
